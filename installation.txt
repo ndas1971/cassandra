@@ -75,7 +75,7 @@ $ docker run --name cass_cluster_mounted  -d cassandra:3.11.4 -Dcassandra.config
 
 ### Creating Docker cluster 
 Ensure that Docker engine has atleat 8G and 4 CPU 
-for HyperV , chnage it in Docker Desktop -> Resources 
+for HyperV , change it in Docker Desktop -> Resources 
 For WSL2 based ,  Update C:\Users\User\.wslconfig file(not Tested)
 [wsl2]
 memory=8GB   # Limits VM memory in WSL 2 up to 2GB
