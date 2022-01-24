@@ -1,0 +1,202 @@
+###Install   (INTERNAL)
+Ubuntu LTS 18.04/Windows/AWS EC2(16GB RAM/100GB Harddisk/vCPU min 4)
+Install Docker (follow any one accordingly)
+    https://docs.docker.com/engine/install/ubuntu/
+    https://docs.docker.com/desktop/windows/install/
+    https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html
+Install cassandra Using docker 
+    $ docker pull cassandra:3.11.4
+    $ docker container ls 
+    $ docker run --name cass_cluster  -d cassandra:3.11.4
+    $ docker logs cass_cluster  # check for  'Starting listening for CQL clients
+    #check stats 
+    $ docker stats cass_cluster --no-stream 
+    $ docker exec -it cass_cluster cqlsh
+    #Then exit 
+    > quit 
+
+In Windows 
+"C:\Program Files\Git\bin\bash.exe" --login -i "C:\Docker\start.sh"
+> docker container ls  --all 
+> docker exec -it cass_cluster nodetool version  #cassandra version 
+> docker exec -it cass_cluster nodetool status
+> docker exec -it cass_cluster bash
+
+COMMAND should be an executable, a chained or a quoted command will not work. 
+Example: docker exec -ti my_container "echo a && echo b" will not work, 
+but docker exec -ti my_container sh -c "echo a && echo b" will.
+
+> docker stop cass_cluster
+#Start 
+> docker start cass_cluster
+> docker container rm cass_cluster
+
+(cqlsh -u cassandra -p cassandra localhost 9042)
+To get IP address of cass_cluster 
+$ docker inspect cass_cluster 
+OR 
+$ docker inspect --format='{{ .NetworkSettings.IPAddress}}' cass_cluster
+eg 172.17.0.3
+$ docker exec -it cass_cluster cqlsh -u cassandra -p cassandra 172.17.0.3 9042
+
+
+At the end 
+$ docker-machine stop
+
+##for public ip 
+$ docker stop cass_cluster
+#create new image as -p only works with run 
+$ docker commit cass_cluster cass_cluster_pub
+#-p localport:container_port 
+#or -p 192.168.1.100:8080:80 	-p 8080:80/udp 	OR -p 8080:80/tcp -p 8080:80/udp
+$ docker run --name cass_cluster_pub -p 9042:9042   -td cass_cluster_pub
+#do for example java driver and then 
+$ docker stop cass_cluster_pub 
+
+
+##For persistence 
+For mounted volume (host /data )
+(only for windows , for linux host, start from mkdir  )
+$ docker-machine ssh   
+$ sudo mkdir /data 
+$ sudo chown -R 999:999 /data   #cassandra is 999
+$ docker run --name cass_cluster_mounted -v /data:/var/lib/cassandra -d cassandra:3.11.4
+$ docker exec -it cass_cluster_mounted cqlsh 
+> CREATE KEYSPACE IF NOT EXISTS test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
+> CREATE TABLE IF NOT EXISTS test.table1 ( id UUID PRIMARY KEY, lastname text, firstname text );
+> DESCRIBE TABLE test.table1
+> INSERT INTO test.table1 (id, lastname, firstname) VALUES (5b6962dd-3f90-4c93-8f61-eabfa4a803e2, 'VOS','Marianne');
+> select * from test.table1;
+
+$ docker exec -it cass_cluster_mounted nodetool drain 
+$ docker stop cass_cluster_mounted
+$ docker rm cass_cluster_mounted
+$ docker run --name cass_cluster_mounted -v /data:/var/lib/cassandra -d cassandra:3.11.4
+$ docker exec -it cass_cluster_mounted cqlsh 
+> select * from test.table1;
+
+##To include configuration file(/etc/cassandra/cassandra.yaml) /path/to/ in host and mount like above 
+$ docker run --name cass_cluster_mounted  -d cassandra:3.11.4 -Dcassandra.config=/path/to/cassandra.yaml
+
+
+### Creating Docker cluster (delete old cluster at first)
+> docker image ls
+#Create a network 
+#Singel host - bridge, multiple host docker-overlay , check https://docs.docker.com/engine/reference/commandline/network_create/
+> docker network rm CassandraNetwork
+> docker network create -d bridge CassandraNetwork
+
+> docker container stop cas1 cas2 cas3
+> docker container rm cas1 cas2 cas3
+
+#-m=1g, restrict memory of container , https://docs.docker.com/config/containers/resource_constraints/
+#check for env var https://hub.docker.com/_/cassandra
+#eg cassandra memory can be restricted as -e MAX_HEAP_SIZE=1G -e HEAP_NEWSIZE=100M , used for setting java memory 
+> docker run --name cas1  -m=1g --network CassandraNetwork -e CASSANDRA_CLUSTER_NAME=MyCluster -e CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch -e CASSANDRA_DC=datacenter1 -e CASSANDRA_RACK=rack1 -d cassandra:4.0.1
+> docker container ls 
+> docker logs cas1
+
+#Ensure it is UN 
+$ docker exec -ti cas1 nodetool status 
+
+> docker stats --no-stream
+> docker exec -it cas1 nodetool version
+
+#get IP - Uses GO template 
+#https://docs.docker.com/engine/reference/commandline/inspect/
+#https://docs.gomplate.ca/syntax/
+
+For default network 
+> docker inspect --format='{{ .NetworkSettings.IPAddress}}' cas1
+
+for custom network 
+> docker inspect --format='{{ .NetworkSettings.Networks.CassandraNetwork.IPAddress}}' cas1
+MAIN_IP=$(docker inspect --format='{{ .NetworkSettings.Networks.CassandraNetwork.IPAddress}}' cas1)
+eg The main ip is 172.20.0.2
+
+
+#Other nodes 
+> docker container rm cas2 cas3 
+> docker run --name cas2 -m=1g  --network CassandraNetwork  -e CASSANDRA_SEEDS=172.20.0.2 -e CASSANDRA_CLUSTER_NAME=MyCluster -e CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch -e CASSANDRA_DC=datacenter1 -e CASSANDRA_RACK=rack1 -d cassandra:4.0.1
+#Ensure both are visible 
+$ docker exec -ti cas1 nodetool status 
+
+> docker run --name cas3 -m=1g  --network CassandraNetwork -e CASSANDRA_SEEDS=172.20.0.2 -e CASSANDRA_CLUSTER_NAME=MyCluster -e CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch -e CASSANDRA_DC=datacenter2 -e CASSANDRA_RACK=rack2 -d cassandra:4.0.1
+
+> docker container ls --all
+
+> docker logs cas2
+> docker logs cas3 
+
+#Ensure all are UN 
+$ docker exec -ti cas1 nodetool status 
+
+#Connect to Cassandra from cqlsh
+> docker exec -ti cas1 nodetool status
+The status column of each node should show UN (node is UP and its state is Normal). 
+If you see 'UJ' that means your node is joining, just wait for a while and check it again. 
+Tokens means no of vnodes and owns does not have much meaning in cluster, see it with keyspace 
+
+#Container shell access 
+> docker exec -it cas1 bash
+
+#Stop 
+> docker stop cas3 cas2 cas1
+#Start 
+> docker start cas3 cas2 cas1
+
+#Stop docker VM 
+$ docker-machine stop default
+
+#start cqlsh 
+> docker exec -ti cas1 cqlsh
+
+#DC can have a different replication factor and 
+#( RF in a DC must be less than no of nodes in a DC , different DC holds complete no of copies based on RF)
+#All replicas are equally important; there is no primary or master replica
+
+#RF with 1 for each DC ie 1 copy  and that copy is distributed between all nodes 
+#(so each node in a DC gets some portion of data when RF < #nodes, owns = (100/#nodes) *  RF  %)
+#and QUORUM is 2/2 + 1 = 2 , so no node can go down 
+> CREATE KEYSPACE mykeyspace WITH replication = {'class':'NetworkTopologyStrategy','datacenter1': 1,'datacenter2': 1};
+
+> CREATE TABLE mykeyspace.mytable (id int primary key,name text);
+
+$ docker exec -ti cas1 nodetool status mykeyspace
+Datacenter: datacenter1
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address     Load       Tokens  Owns (effective)  Host ID                               Rack
+UN  172.20.0.3  74.23 KiB  16      51.2%             f8205b13-de6b-4a9c-9c7a-ece9c4a0d27b  rack1
+UN  172.20.0.2  96.61 KiB  16      48.8%             8be61111-b31b-45c9-ba59-fbac41d8eda2  rack1
+
+Datacenter: datacenter2
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address     Load       Tokens  Owns (effective)  Host ID                               Rack
+UN  172.20.0.4  91.57 KiB  16      100.0%            fe539440-58b3-4ed2-8254-8f5aeba7c289  rack1
+
+##With RF of 2  at DC1 ie each node of DC1 gets one copy ,DC2's RF is 1 and node 1, so that gets copy 
+#and QUORUM is 3/2 + 1 = 2 , so one node can go down in DC1, but no node at DC2 
+> CREATE KEYSPACE mykeyspace2 WITH replication = {'class':'NetworkTopologyStrategy','datacenter1': 2,'datacenter2': 1};
+
+> CREATE TABLE mykeyspace2.mytable (id int primary key,name text);
+
+#now each is 100% means owns full copy of the data 
+$ docker exec -ti cas1 nodetool status mykeyspace2
+Datacenter: datacenter1
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address     Load        Tokens  Owns (effective)  Host ID                               Rack
+UN  172.20.0.3  91.56 KiB   16      100.0%            f8205b13-de6b-4a9c-9c7a-ece9c4a0d27b  rack1
+UN  172.20.0.2  103.77 KiB  16      100.0%            8be61111-b31b-45c9-ba59-fbac41d8eda2  rack1
+
+Datacenter: datacenter2
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address     Load        Tokens  Owns (effective)  Host ID                               Rack
+UN  172.20.0.4  98.74 KiB   16      100.0%            fe539440-58b3-4ed2-8254-8f5aeba7c289  rack1
