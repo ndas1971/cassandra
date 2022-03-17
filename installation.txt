@@ -1,8 +1,8 @@
 ###Quick start of Single cluster 
 Open command prompt at C:\Users\Admin\Desktop\cassandra 
 Start cassandra by (first Day)
-$ docker rm cass_cluster
-$ docker run --name cass_cluster  -p 9042:9042 -v C:/Users/Admin/Desktop/cassandra/data:/var/lib/cassandra -d cassandra:3.11.4 
+> docker rm cass_cluster
+> docker run --name cass_cluster  -p 9042:9042 -v C:/Users/Admin/Desktop/cassandra/data:/var/lib/cassandra -d cassandra:3.11.4 
 > docker exec -it cass_cluster nodetool status
 Wait for UN 
 
@@ -16,97 +16,7 @@ Stop
 Open CQLSH 
 > docker exec -it cass_cluster cqlsh 
 
-###Install   
-Ubuntu LTS 18.04/Windows/AWS EC2(16GB RAM/100GB Harddisk/vCPU min 4)
-Install Docker (follow any one accordingly)
-    https://docs.docker.com/engine/install/ubuntu/
-    https://docs.docker.com/desktop/windows/install/
-    https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html
-    
-For Windows, docker desktop(windows10 Pro) or docker toolbox(other windows)
-If docker desktop, then enable HyperV
-PS>  Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
-Then in Docker Desktop ->General -> unclick WSL2 based engine 
-(WSL2 is not tested with below proceedure)
-    
-Install cassandra Using docker 
-    $ docker pull cassandra:3.11.4
-    $ docker container ls 
-    $ docker run --name cass_cluster  -d cassandra:3.11.4
-    $ docker logs cass_cluster  # check for  'Starting listening for CQL clients
-    #check stats 
-    $ docker stats cass_cluster --no-stream 
-    $ docker exec -it cass_cluster cqlsh
-    #Then exit 
-    > quit 
-
-
-> docker container ls  --all 
-> docker exec -it cass_cluster nodetool version  #cassandra version 
-> docker exec -it cass_cluster nodetool status
-> docker exec -it cass_cluster bash
-
-##for public ip 
-$ docker stop cass_cluster
-#create new image as -p only works with run 
-$ docker commit cass_cluster cass_cluster_pub
-#-p localport:container_port 
-#or -p 192.168.1.100:8080:80 	-p 8080:80/udp 	OR -p 8080:80/tcp -p 8080:80/udp
-$ docker run --name cass_cluster_pub -p 9042:9042   -td cass_cluster_pub
-#do for example java driver and then 
-$ docker stop cass_cluster_pub 
-
-
-##For persistence 
-For mounted volume (host /data )
-For Desktop +HyperV 
-Open Docker desktop -> resources ->File sharing 
-Share any dir  and then use like  -v C:/Users/Admin/Desktop/cassandra/data:/var/lib/cassandra in below commands 
-
-For WSL2, it is autoshared 
-For docker toolbox, create data after 
-$ docker-machine ssh 
-
-For linux and docker toolbox , create data 
-$ sudo mkdir /data 
-$ sudo chown -R 999:999 /data   #cassandra is 999
-
-Then share 
-$ docker run --name cass_cluster_mounted -v /data:/var/lib/cassandra -d cassandra:3.11.4
-$ docker exec -it cass_cluster_mounted cqlsh 
-> CREATE KEYSPACE IF NOT EXISTS test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
-> CREATE TABLE IF NOT EXISTS test.table1 ( id UUID PRIMARY KEY, lastname text, firstname text );
-> DESCRIBE TABLE test.table1
-> INSERT INTO test.table1 (id, lastname, firstname) VALUES (5b6962dd-3f90-4c93-8f61-eabfa4a803e2, 'VOS','Marianne');
-> select * from test.table1;
-
-$ docker exec -it cass_cluster_mounted nodetool drain 
-$ docker stop cass_cluster_mounted
-$ docker rm cass_cluster_mounted
-$ docker run --name cass_cluster_mounted -v /data:/var/lib/cassandra -d cassandra:3.11.4
-$ docker exec -it cass_cluster_mounted cqlsh 
-> select * from test.table1;
-
-##To include configuration file(/etc/cassandra/cassandra.yaml) /path/to/ in host and mount like above 
-$ docker run --name cass_cluster_mounted  -d cassandra:3.11.4 -Dcassandra.config=/path/to/cassandra.yaml
-
-
 ### Creating Docker cluster 
-Ensure that Docker engine has atleat 8G and 4 CPU 
-for HyperV , change it in Docker Desktop -> Resources 
-For WSL2 based ,  Update C:\Users\User\.wslconfig file(not Tested)
-[wsl2]
-memory=8GB   # Limits VM memory in WSL 2 up to 2GB
-processors=4# Makes the WSL 2 VM use two virtual processors
-For Virtual box + docker tool box 
-> docker-machine stop
-> VBoxManage modifyvm default --cpus 2
-> VBoxManage modifyvm default --memory 4096
-> docker-machine start
-> docker-machine env
-> docker-machine ls
-
-Then do below 
 > docker image ls
 #Create a network 
 #Singel host - bridge, multiple host docker-overlay , check https://docs.docker.com/engine/reference/commandline/network_create/
@@ -202,3 +112,93 @@ Stopping order - cas3, cas2, cas1
 #Esnure that UN 
 > docker exec -ti cas1 nodetool status  
 
+##############################################################
+###Install   
+Ubuntu LTS 18.04/Windows/AWS EC2(16GB RAM/100GB Harddisk/vCPU min 4)
+Install Docker (follow any one accordingly)
+    https://docs.docker.com/engine/install/ubuntu/
+    https://docs.docker.com/desktop/windows/install/
+    https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html
+    
+For Windows, docker desktop(windows10 Pro) or docker toolbox(other windows)
+If docker desktop, then enable HyperV
+PS>  Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
+Then in Docker Desktop ->General -> unclick WSL2 based engine 
+(WSL2 is not tested with below proceedure)
+    
+Install cassandra Using docker 
+    $ docker pull cassandra:3.11.4
+    $ docker container ls 
+    $ docker run --name cass_cluster  -d cassandra:3.11.4
+    $ docker logs cass_cluster  # check for  'Starting listening for CQL clients
+    #check stats 
+    $ docker stats cass_cluster --no-stream 
+    $ docker exec -it cass_cluster cqlsh
+    #Then exit 
+    > quit 
+
+
+> docker container ls  --all 
+> docker exec -it cass_cluster nodetool version  #cassandra version 
+> docker exec -it cass_cluster nodetool status
+> docker exec -it cass_cluster bash
+
+##for public ip 
+$ docker stop cass_cluster
+#create new image as -p only works with run 
+$ docker commit cass_cluster cass_cluster_pub
+#-p localport:container_port 
+#or -p 192.168.1.100:8080:80 	-p 8080:80/udp 	OR -p 8080:80/tcp -p 8080:80/udp
+$ docker run --name cass_cluster_pub -p 9042:9042   -td cass_cluster_pub
+#do for example java driver and then 
+$ docker stop cass_cluster_pub 
+
+
+##For persistence 
+For mounted volume (host /data )
+For Desktop +HyperV 
+Open Docker desktop -> resources ->File sharing 
+Share any dir  and then use like  -v C:/Users/Admin/Desktop/cassandra/data:/var/lib/cassandra in below commands 
+
+For WSL2, it is autoshared 
+For docker toolbox, create data after 
+$ docker-machine ssh 
+
+For linux and docker toolbox , create data 
+$ sudo mkdir /data 
+$ sudo chown -R 999:999 /data   #cassandra is 999
+
+Then share 
+$ docker run --name cass_cluster_mounted -v /data:/var/lib/cassandra -d cassandra:3.11.4
+$ docker exec -it cass_cluster_mounted cqlsh 
+> CREATE KEYSPACE IF NOT EXISTS test WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
+> CREATE TABLE IF NOT EXISTS test.table1 ( id UUID PRIMARY KEY, lastname text, firstname text );
+> DESCRIBE TABLE test.table1
+> INSERT INTO test.table1 (id, lastname, firstname) VALUES (5b6962dd-3f90-4c93-8f61-eabfa4a803e2, 'VOS','Marianne');
+> select * from test.table1;
+
+$ docker exec -it cass_cluster_mounted nodetool drain 
+$ docker stop cass_cluster_mounted
+$ docker rm cass_cluster_mounted
+$ docker run --name cass_cluster_mounted -v /data:/var/lib/cassandra -d cassandra:3.11.4
+$ docker exec -it cass_cluster_mounted cqlsh 
+> select * from test.table1;
+
+##To include configuration file(/etc/cassandra/cassandra.yaml) /path/to/ in host and mount like above 
+$ docker run --name cass_cluster_mounted  -d cassandra:3.11.4 -Dcassandra.config=/path/to/cassandra.yaml
+
+
+### Creating Docker cluster (prerequisites) 
+Ensure that Docker engine has atleat 8G and 4 CPU 
+for HyperV , change it in Docker Desktop -> Resources 
+For WSL2 based ,  Update C:\Users\User\.wslconfig file(not Tested)
+[wsl2]
+memory=8GB   # Limits VM memory in WSL 2 up to 2GB
+processors=4# Makes the WSL 2 VM use two virtual processors
+For Virtual box + docker tool box 
+> docker-machine stop
+> VBoxManage modifyvm default --cpus 2
+> VBoxManage modifyvm default --memory 4096
+> docker-machine start
+> docker-machine env
+> docker-machine ls
